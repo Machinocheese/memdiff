@@ -1,5 +1,5 @@
-import functools
 import hashlib
+import tempfile
 
 class memdiffGDBCommand(gdb.Command):
     """
@@ -16,10 +16,10 @@ class memdiffGDBCommand(gdb.Command):
         for i in range(0, len(mapdiff)):
             final_str += (str(i) + ":").ljust(4)
             if mapdiff[i][0] == (): #only modified has it
-                final_str += green(mapdiff[i][1][0]['range'].center(35)) + " || " + mapdiff[i][1][0]['name'] + "\n"
+                final_str += print_green(mapdiff[i][1][0]['range'].center(35)) + " || " + mapdiff[i][1][0]['name'] + "\n"
                 continue
             if mapdiff[i][1] == (): #only original has it
-                final_str += " ".center(35) + " || " + red(mapdiff[i][0][0]['range'].center(35)) + mapdiff[i][0][0]['name'] + "\n"
+                final_str += " ".center(35) + " || " + print_red(mapdiff[i][0][0]['range'].center(35)) + mapdiff[i][0][0]['name'] + "\n"
                 continue
 
             (md1, fd1) = mapdiff[i][0]
@@ -27,7 +27,7 @@ class memdiffGDBCommand(gdb.Command):
             if md1['md5sum'] == md2['md5sum']:
                 final_str += md1['range'].center(35) + " || " + md2['range'].center(35)
             else:
-                final_str += green(md1['range'].center(35)) + " || " + red(md2['range'].center(35))
+                final_str += print_green(md1['range'].center(35)) + " || " + print_red(md2['range'].center(35))
 
             final_str += md1['name']
             if md1['name'] != md2['name']:
@@ -42,7 +42,7 @@ class memdiffGDBCommand(gdb.Command):
     # md = metadata,
     # - name, start_addr, end_addr, range
     # fd = file descriptor
-    # - stores the /tmp/ fd where the mapping bytes are stored
+    # - stores the /tmp/ fd where the mapping bytes are stoprint_red
     def create_mapdiff(self, argc, argv):
         global records
         targets = []
@@ -50,7 +50,7 @@ class memdiffGDBCommand(gdb.Command):
             for elem in records[int(argv[i])]:
                 (md, fd) = elem
                 md['target_id'] = argv[i]
-                #0 for green/original, 1 for red/modified
+                #0 for print_green/original, 1 for print_red/modified
                 targets.append((md, fd))
         targets.sort(key=record_compare)
 
@@ -120,8 +120,8 @@ class memdiffGDBCommand(gdb.Command):
                                 final1 += hex1[i][bot:top]
                                 final2 += hex2[i][bot:top]
                             else:
-                                final1 += green(hex1[i][bot:top])
-                                final2 += red(hex2[i][bot:top])
+                                final1 += print_green(hex1[i][bot:top])
+                                final2 += print_red(hex2[i][bot:top])
                         final1 += " "
                         final2 += " "
                     final1 += " "
@@ -132,8 +132,8 @@ class memdiffGDBCommand(gdb.Command):
                             final1 += text1[i]
                             final2 += text2[i]
                         else:
-                            final1 += green(text1[i])
-                            final2 += red(text2[i])
+                            final1 += print_green(text1[i])
+                            final2 += print_red(text2[i])
 
                     print(final1.center(spacing) + " || " + final2.center(spacing) + "   " + result3)
         return
@@ -160,6 +160,19 @@ class memdiffGDBCommand(gdb.Command):
         if argc == 3:  #given a mapping, prints a comparison between bytes in that mapping between snapshots
             self.print_byte_diff(argc, argv, mapdiff)
         return
+
+def print_red(text):
+    retval = "\033[;31m%s\033[0m" % (text)
+    return retval
+
+def print_green(text):
+    retval = "\033[;32m%s\033[0m" % (text)
+    return retval
+
+#returns a temporary file handle
+def tmpfile(is_binary_file=False):
+    mode = 'w+b' if is_binary_file else 'w+'
+    return tempfile.NamedTemporaryFile(mode=mode)
 
 #gets the md5 checksum of a file
 def md5(fname):
