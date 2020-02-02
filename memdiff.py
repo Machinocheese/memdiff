@@ -10,6 +10,7 @@ class memdiffGDBCommand(gdb.Command):
         self.__doc__ = "Compares memory snapshots created via memsnap"
         super(memdiffGDBCommand, self).__init__(self.cmdname, gdb.COMMAND_DATA)
 
+    #handles the memdiff <#> <#> case
     def print_mapping_diff(self, argc, argv, mapdiff):
         final_str = "ID".ljust(4) + ("Memsnap #" + argv[0]).center(35) + " || " + ("Memsnap #" + argv[1]).center(35) + "objfile\n"
         for i in range(0, len(mapdiff)):
@@ -80,11 +81,11 @@ class memdiffGDBCommand(gdb.Command):
                     mapdiff.append(((), (md1, fd1)))
                 else:
                     mapdiff.append(((md1, fd1), ()))
-        
         return mapdiff
 
     def print_byte_diff(self, argc, argv, mapdiff):
         mapid = int(argv[2])
+        spacing = 73
         if mapid >= len(mapdiff) or mapid < 0:
             print("Invalid mapping number. Allowed values are: %d - %d" % (0, len(mapdiff) - 1))
             return
@@ -98,7 +99,7 @@ class memdiffGDBCommand(gdb.Command):
             print("Mappings are identical")
             return
         else:
-            print(("Memsnap #" + argv[0]).center(67) + " || " + ("Memsnap #" + argv[1]).center(67))
+            print(("Memsnap #" + argv[0]).center(spacing) + " || " + ("Memsnap #" + argv[1]).center(spacing) + "   Symbols")
             xxd1 = tmpfile()
             xxd2 = tmpfile()
             result1 = execute("shell xxd %s > %s" % (mapdiff[mapid][0][1].name, xxd1.name))
@@ -107,12 +108,12 @@ class memdiffGDBCommand(gdb.Command):
                 line1 = line1[:-1]
                 line2 = xxd2.readline()[:-1]
                 if line1 != line2:
-                    hex1, text1 = line1.split("  ")
-                    hex2, text2 = line2.split("  ")
+                    hex1, text1 = line1.split("  ") #hex1 = Addr: 00 11 22
+                    hex2, text2 = line2.split("  ") #text = ...A...B..ZXCV
                     hex1 = hex1.split(" ")
                     hex2 = hex2.split(" ")
-                    final1 = hex(int(hex1[0][:-1], 16) + int(md1['start_addr'], 16)) + ": "
-                    final2 = hex(int(hex2[0][:-1], 16) + int(md2['start_addr'], 16)) + ": "
+                    final1 = final2 = hex(int(hex1[0][:-1], 16) + int(md1['start_addr'], 16)) + ": "
+                    result3 = execute("info symbol %s" % (final1[:-2])).rstrip()
                     for i in range(1, len(hex1)): #first one is the address, no need for comparison
                         for bot, top in ((0, 2), (2, 4)):
                             if hex1[i][bot:top] == hex2[i][bot:top]:
@@ -134,9 +135,8 @@ class memdiffGDBCommand(gdb.Command):
                             final1 += green(text1[i])
                             final2 += red(text2[i])
 
-                    print(final1 + " || " + final2)
+                    print(final1.center(spacing) + " || " + final2.center(spacing) + "   " + result3)
         return
-
 
     def invoke(self, arg_string, from_tty):
         self.dont_repeat() #prevents command repetition upon newline
